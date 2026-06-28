@@ -198,7 +198,7 @@
 
         <service
             android:name=".app.HardwareService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="camera|microphone|location" />
 
         <receiver
