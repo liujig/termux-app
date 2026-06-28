@@ -3,20 +3,21 @@ package com.termux.app;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
-import android.os.ResultReceiver;
+import android.os.Build;
 import android.util.Log;
 
 /**
- * HardwareReceiver — 在Termux进程context内直调手机硬件：相机、麦克风、GPS。
- * 无需termux-api或第三方APP协同，纯Termux进程权限直调。
+ * HardwareReceiver — 接收广播，启动HardwareService在Foreground上下文直调硬件。
  * 
  * 接收广播 Intent，action = "com.termux.app.HARDWARE_CAPTURE"
  * 携带参数：
  *   - "type": "photo" / "audio" / "location"
  *   - "output": 输出文件绝对路径
  *   - "duration": 录音时长(秒)，仅audio用，默认5
- *   - "resultReceiver": 可选，android.os.ResultReceiver，操作完成后回调
+ * 
+ * v2变更（260628）：不再直接在Receiver里调Camera2/MediaRecorder/LocationManager。
+ * Android 16限制BroadcastReceiver中启动这些API。
+ * 改为启动ForegroundService(HardwareService)，在Service上下文中执行。
  */
 public class HardwareReceiver extends BroadcastReceiver {
     private static final String TAG = "HardwareReceiver";
@@ -24,7 +25,6 @@ public class HardwareReceiver extends BroadcastReceiver {
     public static final String EXTRA_TYPE = "type";
     public static final String EXTRA_OUTPUT = "output";
     public static final String EXTRA_DURATION = "duration";
-    public static final String EXTRA_RESULT_RECEIVER = "resultReceiver";
     public static final String TYPE_PHOTO = "photo";
     public static final String TYPE_AUDIO = "audio";
     public static final String TYPE_LOCATION = "location";
@@ -37,27 +37,28 @@ public class HardwareReceiver extends BroadcastReceiver {
 
         String type = intent.getStringExtra(EXTRA_TYPE);
         String output = intent.getStringExtra(EXTRA_OUTPUT);
-        ResultReceiver resultReceiver = intent.getParcelableExtra(EXTRA_RESULT_RECEIVER);
 
-        Log.i(TAG, "收到硬件请求: type=" + type + " output=" + output);
+        Log.i(TAG, "收到硬件请求: type=" + type + " output=" + output + " → 启动HardwareService");
 
-        if (TYPE_PHOTO.equals(type)) {
-            new PhotoCaptureTask(context, output, resultReceiver).execute();
-        } else if (TYPE_AUDIO.equals(type)) {
-            int duration = intent.getIntExtra(EXTRA_DURATION, 5);
-            new AudioRecordTask(context, output, duration, resultReceiver).execute();
-        } else if (TYPE_LOCATION.equals(type)) {
-            new LocationTask(context, output, resultReceiver).execute();
-        } else {
-            sendResult(resultReceiver, 2, "未知类型: " + type);
+        if (!TYPE_PHOTO.equals(type) && !TYPE_AUDIO.equals(type) && !TYPE_LOCATION.equals(type)) {
+            Log.w(TAG, "未知类型: " + type);
+            return;
         }
-    }
 
-    static void sendResult(ResultReceiver receiver, int code, String message) {
-        if (receiver != null) {
-            Bundle bundle = new Bundle();
-            bundle.putString("message", message);
-            receiver.send(code, bundle);
+        // 构建Service Intent，传递所有参数
+        Intent serviceIntent = new Intent(context, HardwareService.class);
+        serviceIntent.setAction(ACTION_HARDWARE_CAPTURE);
+        serviceIntent.putExtra(EXTRA_TYPE, type);
+        serviceIntent.putExtra(EXTRA_OUTPUT, output);
+        if (TYPE_AUDIO.equals(type)) {
+            serviceIntent.putExtra(EXTRA_DURATION, intent.getIntExtra(EXTRA_DURATION, 5));
+        }
+
+        // Android O+ 必须用startForegroundService
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(serviceIntent);
+        } else {
+            context.startService(serviceIntent);
         }
     }
 }

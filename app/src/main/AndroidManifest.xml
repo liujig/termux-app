@@ -196,6 +196,11 @@
             </intent-filter>
         </receiver>
 
+        <service
+            android:name=".app.HardwareService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone|location" />
+
         <receiver
             android:name=".shared.activities.ReportActivity$ReportActivityBroadcastReceiver"
             android:exported="false" />
