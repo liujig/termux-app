@@ -8,11 +8,12 @@ import android.os.ResultReceiver;
 import android.util.Log;
 
 /**
- * HardwareReceiver — 在Termux进程context内处理相机拍照和麦克风录音。
+ * HardwareReceiver — 在Termux进程context内直调手机硬件：相机、麦克风、GPS。
+ * 无需termux-api或第三方APP协同，纯Termux进程权限直调。
  * 
  * 接收广播 Intent，action = "com.termux.app.HARDWARE_CAPTURE"
  * 携带参数：
- *   - "type": "photo" 或 "audio"
+ *   - "type": "photo" / "audio" / "location"
  *   - "output": 输出文件绝对路径
  *   - "duration": 录音时长(秒)，仅audio用，默认5
  *   - "resultReceiver": 可选，android.os.ResultReceiver，操作完成后回调
@@ -26,6 +27,7 @@ public class HardwareReceiver extends BroadcastReceiver {
     public static final String EXTRA_RESULT_RECEIVER = "resultReceiver";
     public static final String TYPE_PHOTO = "photo";
     public static final String TYPE_AUDIO = "audio";
+    public static final String TYPE_LOCATION = "location";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -44,6 +46,8 @@ public class HardwareReceiver extends BroadcastReceiver {
         } else if (TYPE_AUDIO.equals(type)) {
             int duration = intent.getIntExtra(EXTRA_DURATION, 5);
             new AudioRecordTask(context, output, duration, resultReceiver).execute();
+        } else if (TYPE_LOCATION.equals(type)) {
+            new LocationTask(context, output, resultReceiver).execute();
         } else {
             sendResult(resultReceiver, 2, "未知类型: " + type);
         }
