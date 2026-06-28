@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Bundle;
+import android.os.ResultReceiver;
 import android.util.Log;
 
 /**
@@ -59,6 +61,15 @@ public class HardwareReceiver extends BroadcastReceiver {
             context.startForegroundService(serviceIntent);
         } else {
             context.startService(serviceIntent);
+        }
+    }
+
+    /** Task回调用 — 供PhotoCaptureTask/AudioRecordTask/LocationTask发送结果 */
+    static void sendResult(ResultReceiver receiver, int code, String message) {
+        if (receiver != null) {
+            Bundle bundle = new Bundle();
+            bundle.putString("message", message);
+            receiver.send(code, bundle);
         }
     }
 }
