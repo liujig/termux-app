@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -89,15 +90,21 @@ public class BuiltinSensorServer implements SensorEventListener {
 
     private void startServer() {
         running = true;
-        new Thread(() -> {
-            try {
-                serverSocket = new ServerSocket(PORT);
-                while (running) {
-                    Socket client = serverSocket.accept();
-                    new Thread(() -> handle(client)).start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    serverSocket = new ServerSocket(PORT);
+                    while (running) {
+                        final Socket client = serverSocket.accept();
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() { handle(client); }
+                        }).start();
+                    }
+                } catch (Exception e) {
+                    if (running) e.printStackTrace();
                 }
-            } catch (Exception e) {
-                if (running) e.printStackTrace();
             }
         }).start();
     }
@@ -145,7 +152,7 @@ public class BuiltinSensorServer implements SensorEventListener {
     private String listJson() {
         StringBuilder sb = new StringBuilder("{\"sensors\":[");
         boolean first = true;
-        for (var e : names.entrySet()) {
+        for (Map.Entry<Integer, String> e : names.entrySet()) {
             if (!first) sb.append(",");
             first = false;
             sb.append("{\"type\":").append(e.getKey()).append(",\"name\":\"").append(e.getValue()).append("\"}");
@@ -156,7 +163,7 @@ public class BuiltinSensorServer implements SensorEventListener {
     private String allJson() {
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
-        for (var e : values.entrySet()) {
+        for (Map.Entry<Integer, float[]> e : values.entrySet()) {
             if (!first) sb.append(",");
             first = false;
             sb.append("\"").append(names.getOrDefault(e.getKey(), "s"+e.getKey())).append("\":{\"values\":[");
